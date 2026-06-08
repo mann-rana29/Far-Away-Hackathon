@@ -1,0 +1,44 @@
+# Python-specific ignores
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+bin/
+lib/
+include/
+share/
+*.egg-info/
+.coverage*
+htmlcov/
+
+# Environment variables file
+# Keep your sensitive data out of version control
+.env
+.flaskenv
+
+# Editor and OS files
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Build artifacts and testing
+dist/
+site/
+build/
+*.whl
+test.db
+log.txt
+coverage.xml
+
+# Specific to certain package managers or tools
+Pipfile.lock # Recommended to include Pipfile.lock in version control according to pypa/pipenv#598
+.mypy_cache/
+.pytest_cache/
