@@ -1,0 +1,112 @@
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from collections import defaultdict
+from sklearn.cluster import KMeans
+from services.tsp import nearest_neighbor_tsp
+from models import AiResponse, VerificationRequest ,VerificationResponse , RouteOptimizationRequest , RouteOptimzationResponse , RouteResult
+import requests
+import json
+import numpy as np
+import logging
+import asyncio
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Chokho AI Backend", version="1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = ["http://localhost:3000",
+                    "https://chokho-frontend.vercel.app",
+                    "https://chokho-backend.onrender.com"
+                    ],
+    allow_credentials = True,
+    allow_methods = ["*"],
+    allow_headers = ["*"]
+)
+
+@app.get("/")
+async def root():
+    return {"message" : "chokho-python-backend is running"}
+
+@app.post("/analyze", response_model=AiResponse)
+async def ai_analysis(image : UploadFile = File(...)):
+    
+    from services.ai import complaint_check
+    
+    try:
+        file_bytes = await image.read()
+        logger.info(f"Received image upload: {image.filename}, size: {len(file_bytes)} bytes")
+        
+        result = await asyncio.wait_for(complaint_check(file_bytes), timeout=60.0)
+        logger.info(f"Analysis complete: trash_detected={result.trash_detected}")
+        return result
+    except asyncio.TimeoutError:
+        logger.error(f"Analysis timeout for image {image.filename}")
+        raise HTTPException(status_code=504, detail="Image processing timeout - request took too long")
+    except Exception as e:
+        logger.error(f"Error in analyze endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error processing image")
+
+@app.post("/routes" , response_model= RouteOptimzationResponse)
+async def route_optimization(request : RouteOptimizationRequest):
+    if len(request.complaints) < request.total_vehicles:
+        raise HTTPException(status_code=400, detail="Number of complaints must be lower than number of complaints")\
+        
+    k = request.total_vehicles
+    model = KMeans(n_clusters=k, random_state= 42)
+
+    coordinates = np.array([
+        [complaint.latitude,complaint.longitude] for complaint in request.complaints
+    ])
+
+    ids = [complaint.id for complaint in request.complaints]
+
+    model.fit(coordinates)
+    labels = model.labels_
+
+    clusters = defaultdict(list)
+    for i, label in enumerate(labels):
+        clusters[label].append({'id': ids[i], 'coords': coordinates[i]})
+
+    routes = []
+
+    for cluster_label, complaints in clusters.items():
+        ordered_ids = nearest_neighbor_tsp(complaints=complaints)
+        routes.append(RouteResult(
+            cluster_id= cluster_label,
+            complaint_ids= ordered_ids
+        ))
+
+    return RouteOptimzationResponse(routes=routes)
+
+@app.post("/verify", response_model= VerificationResponse)
+async def verify(requestModel : VerificationRequest):
+    from services.ai import verify_image
+    try:
+        original_img = requests.get(requestModel.original_img_url, timeout=10).content
+        cleaned_img = requests.get(requestModel.cleaned_img_url, timeout=10).content
+
+        response = await verify_image(original_img,cleaned_img)
+        result = json.loads(response)
+
+        return VerificationResponse(
+            is_cleaned= result["is_cleaned"],
+            reason= result["reasoning"]
+        )
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=408, detail="Request timeout while fetching images")
+    except Exception as e:
+        logger.error(f"Error in verify endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Error processing verification")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8000,
+        workers=1
+    )
