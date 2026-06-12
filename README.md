@@ -1,26 +1,18 @@
 # Chokho AI
 
-Chokho AI is a comprehensive waste management and route optimization platform. It connects citizens, municipal administrators, and waste collection workers to create a streamlined, data-driven approach to city cleanliness.
+Chokho AI is a waste management and route optimization platform. It connects citizens, municipal administrators, and waste collection workers to create a streamlined, data-driven approach to city cleanliness.
 
 ## System Architecture
 
 The platform is designed using a microservices-inspired architecture, divided into three distinct components.
 
 ```mermaid
-graph TD
-    Client["Frontend Application (Next.js)"]
-    CoreBackend["Core Backend (Spring Boot)"]
-    AIEngine["AI Engine (FastAPI)"]
-    Database[("Relational Database")]
-
-    Client -->|REST API| CoreBackend
-    CoreBackend -->|CRUD & Auth| Database
-    CoreBackend <-->|Image Verification & Route Optimization| AIEngine
-    
-    subgraph "Python Backend Services"
-    AIEngine --> YOLO["YOLOv8 Object Detection"]
-    AIEngine --> KMeans["Clustering & TSP Algorithm"]
-    end
+graph TD;
+    Client["Frontend Application (Next.js)"]-->|REST API|CoreBackend["Core Backend (Spring Boot)"];
+    CoreBackend-->|CRUD & Auth|Database[("Relational Database")];
+    CoreBackend<-->|Image Verification & Route Optimization|AIEngine["AI Engine (FastAPI)"];
+    AIEngine-->YOLO["YOLOv8 Object Detection"];
+    AIEngine-->KMeans["Clustering & TSP Algorithm"];
 ```
 
 ### 1. Frontend (Next.js)
@@ -70,5 +62,3 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## Contributing
-Please ensure all commits follow the project's standard guidelines and that newly added features are integrated correctly across both backend services.
